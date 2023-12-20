@@ -1,7 +1,7 @@
 const XLSX = require("xlsx");
 const axios = require("axios");
 
-const BATCH_SIZE = 100;
+const BATCH_SIZE = 1;
 const API_TIMEOUT = 10000; // 10 seconds timeout for API response
 
 const OPENAI_API_KEY = "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"; // Replace with your OpenAI API key
@@ -15,20 +15,9 @@ message: Hi Andrea, this is the message I received from Professor Harden regardi
  
 reply: Thank you so much for your help. I will try these different things and get it ↵done today. ↵↵ ↵↵Andrea Willis ↵↵`;
 
-let workbook;
-let sheetName = "Sheet1";
-
-function readExcelFile() {
-  workbook = XLSX.readFile("inputwith2.xlsx");
-}
-
-readExcelFile(); // Read the Excel file initially
-
-function getWorksheet() {
-  return workbook.Sheets[sheetName];
-}
-
-const worksheet = getWorksheet();
+const workbook = XLSX.readFile("input.xlsx");
+const sheetName = "Sheet1"; // Replace with your sheet name
+const worksheet = workbook.Sheets[sheetName];
 
 // Simulated function to mimic API behavior
 async function mockGenerateResponses(message) {
@@ -81,8 +70,8 @@ async function generateResponses(message) {
 // Use this function to generate responses for a message
 async function processMessageWithDelay(message) {
   return new Promise(async (resolve) => {
-    const responses = await mockGenerateResponses(message);
-    // const responses = await generateResponses(message);
+    // const responses = await mockGenerateResponses(message);
+    const responses = await generateResponses(message);
     console.log(responses);
     resolve(responses);
   });
@@ -97,18 +86,22 @@ async function processBatchOfRows(startRow, endRow) {
 
     const valueA = worksheet[cellA] ? worksheet[cellA].v : "";
 
-    batchPromises.push(processMessageWithDelay(valueA).then(processedValue => {
-      const concatenatedResponse = processedValue.join('\n\n\n');
-      console.log(concatenatedResponse);
-      worksheet[cellC] = { v: concatenatedResponse };
-    }));
+    if (valueA.trim() !== "") {
+      batchPromises.push(processMessageWithDelay(valueA).then((processedValue) => {
+        const concatenatedResponse = processedValue.join('\n\n\n');
+        console.log(concatenatedResponse);
+        worksheet[cellC] = { v: concatenatedResponse };
+
+        // Write back to the output file after each processed row
+        XLSX.writeFile(workbook, "output.xlsx");
+      }));
+    }
   }
 
   return Promise.all(batchPromises);
 }
 
 async function processExcelData() {
-
   const range = XLSX.utils.decode_range(worksheet["!ref"]);
   const totalRows = range.e.r - range.s.r + 1;
 
@@ -131,11 +124,10 @@ async function processExcelData() {
     console.log(`[${currentDate}] Processed ${processedRows} out of ${totalRows} rows`);
 
     // Add a delay between batches to stay within API limits
-    const delayBetweenBatches = 1000; 
+    const delayBetweenBatches = 3000;
     await new Promise((resolve) => setTimeout(resolve, delayBetweenBatches));
   }
 
-  XLSX.writeFile(workbook, "outputwith2.xlsx");
   console.log('All rows processed. Output file ready.');
 }
 
